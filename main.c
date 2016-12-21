@@ -37,8 +37,33 @@ int main(void)
 	   if(sampleTxDone){
 		   // Start a new conversion if the previous sample has been TX'd
 		   ADC10CTL0 |= ENC + ADC10SC;             // Sampling and conversion start
-		   __bis_SR_register(CPUOFF + GIE);        // LPM0, ADC10_ISR will force exit
+		   // Fit converted sample in packets (S=UART start bit, P=UART stop bit, X = ADC10MEM data bit)
+		   adcPacket[1] = (ADC10MEM<<1) & (0x7E); // least significant bits (sent 1st) ::S0XXXXXX0P
+		   adcPacket[2] = ((ADC10MEM>>2) & (0xF0)) | 0x01; // most significant bits (sent 2nd) :: SXXXX0001P
 	   }
+	   __bis_SR_register(CPUOFF + GIE);        // LPM0, ADC10_ISR will force exit
+	   switch(packetCounter){ // state checked after Timer ISR exits
+	   case 0:
+		   // do nothing with UART
+		   UC0IE &= ~UCA0TXIE; // Disable USCI_A0 TX interrupt
+		   sampleTxDone = 0; // flag for TX in progress
+		   packetCounter++;
+		   break;
+	   case 1:
+		   // Begin UART TX process
+		   UC0IE |= UCA0TXIE; // Enable USCI_A0 TX interrupt
+		   // packetCounter = 1: send lsb data and post-increment the packet index
+		   UCA0TXBUF = adcPacket[packetCounter++];
+		   break;
+	   case 2:
+		   // packetCounter = 2: send msb data, post-increment packet index to reset state machine after next while(busy){} loop
+		   UCA0TXBUF = adcPacket[packetCounter];
+		   // End UART TX process
+		   packetCounter = 0;
+		   sampleTxDone = 1;
+		   break;
+	   }
+
    }
 }
 
@@ -48,33 +73,17 @@ int main(void)
 #pragma vector=ADC10_VECTOR
 __interrupt void ADC10_ISR(void)
 {
-	// Fit converted sample in packets (S=UART start bit, P=UART stop bit, X = ADC10MEM data bit)
-	adcPacket[1] = (ADC10MEM<<1) & (0x7E); // least significant bits (sent 1st) ::S0XXXXXX0P
-	adcPacket[2] = ((ADC10MEM>>2) & (0xF0)) | 0x01; // most significant bits (sent 2nd) :: SXXXX0001P
-	// Begin UART TX process
-	UC0IE |= UCA0TXIE; // Enable USCI_A0 TX interrupt
-	P1SEL &= ~TXD ; // set TXD pin to be Digital I/O, thus tri-stating UART peripheral
-	P1SEL2 &= ~TXD ; // set TXD pin to be Digital I/O, thus tri-stating UART peripheral
-	UCA0TXBUF = adcPacket[packetCounter++]; // NULL PACKET for synchronization
-	sampleTxDone = 0; // reset sample TX flag during TX process
+
 }
 
 #pragma vector=USCIAB0TX_VECTOR
 __interrupt void USCI0TX_ISR(void)
 {
-  while (!(IFG2&UCA0TXIFG)); // USCI_A0 TX buffer ready?
-  P1SEL |= TXD ; // set TXD pin to be UART peripheral
-  P1SEL2 |= TXD ; // set TXD pin to be UART peripheral
-  if(packetCounter <= 2){ // transmit msb data only once
-	  // packetCounter = 1: send lsb data and post-increment the packet index
-	  // packetCounter = 2: send msb data, post-increment packet index to reset state machine after next while(busy){} loop
-	  UCA0TXBUF = adcPacket[packetCounter++];
-  } else { // reset state machine
-	  packetCounter = 0;
-	  sampleTxDone = 1;
-	  UC0IE &= ~UCA0TXIE; // Enable USCI_A0 TX interrupt
-	  __bic_SR_register_on_exit(CPUOFF);        // Clear CPUOFF bit from 0(SR)
-  }
+
 }
 
-
+#pragma vector=TIMER0_A0_VECTOR
+__interrupt void Timer_A(void)
+{
+	__bic_SR_register_on_exit(CPUOFF);        // Clear CPUOFF bit from 0(SR)
+}
