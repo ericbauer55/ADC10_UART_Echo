@@ -32,7 +32,7 @@ void initUART(){
     UCA0CTL1 &= ~UCSWRST; // **Initialize USCI state machine**
 
     //UC0IE |= UCA0RXIE; // Enable USCI_A0 RX interrupt
-    //UC0IE |= UCA0TXIE; // Enable USCI_A0 TX interrupt
+    UC0IE |= UCA0TXIE; // Enable USCI_A0 TX interrupt
 }
 
 void initADC10(){
