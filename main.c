@@ -15,9 +15,6 @@ uint8_t adcPacket[2]; // UART 8-bit packet structure for one sample
 uint8_t packetCounter; // UART packet state machine counter for sending one sample
 int sampleTxDone; // flag is true if the ADC sample has been transmitted, thus S&C a new value;
 int x[3]; // sample input buffer
-int y[3]; // filter output buffer
-double a[3]; // IIR feedback coefficients
-double b[3]; // IIR input coefficients
 
 /*********************************************************
  * Main Function
@@ -35,9 +32,6 @@ int main(void)
    adcPacket[0] = 0; adcPacket[1] = 0;
    packetCounter = 0;
    x[0] = 0; x[1] = 0; x[2] = 0;
-   y[0] = 0; y[1] = 0; y[2] = 0;
-   a[0] = 1; a[1] = 0; a[2] = 0.1716;
-   b[0] = 0.2929; b[1] = 0.5858; b[2] = 0.2929;
    /* Main Loop */
    while (1)
    {
@@ -45,14 +39,12 @@ int main(void)
 		ADC10CTL0 |= ENC + ADC10SC;		// Sampling and conversion start
 		while(ADC10CTL1 & ADC10BUSY);	// Wait for the sample to be done
 		x[2] = x[1]; x[1] = x[0]; x[0] = ADC10MEM; // Rotate the sample buffer
-		y[2] = y[1]; y[1] = y[0]; // Rotate the filter output buffer
-		y[0] = b[0]*x[0] + b[1]*x[1] + b[2]*x[2] - a[1]*y[1] - a[2]*y[2]; // IIR Filter calculation
 		/* Sample UART Transmit */
 		if(sampleTxDone){
 			// If UART is not currently sending a 10-bit sample, packetize new y[0] value
 			// Fit converted sample in packets (S=UART start bit, P=UART stop bit, X = ADC10MEM data bit)
-			adcPacket[0] = (y[0]<<1) & (0x7E); // least significant bits (sent 1st) ::S0XXXXXX0P
-			adcPacket[1] = ((y[0]>>2) & (0xF0)) | 0x01; // most significant bits (sent 2nd) :: SXXXX0001P
+			adcPacket[0] = (x[0]<<1) & (0x7E); // least significant bits (sent 1st) ::S0XXXXXX0P
+			adcPacket[1] = ((x[0]>>2) & (0xF0)) | 0x01; // most significant bits (sent 2nd) :: SXXXX0001P
 		}
 		if(!(UCA0STAT & UCBUSY)){ // See if UART is not busy sending a sample
 			if(packetCounter <= 1){
