@@ -15,5 +15,6 @@ void initClocks();
 void initPinIO();
 void initUART();
 void initADC10();
+void initTimer();
 
 #endif /* INIT_H_ */

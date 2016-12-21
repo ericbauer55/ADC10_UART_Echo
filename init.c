@@ -31,8 +31,8 @@ void initUART(){
 	/* UART Module Init */
 	UCA0CTL1 |= UCSSEL_2; // SMCLK
 
-    UCA0BR0 = 0x02; // 16MHz 500000 baud
-    UCA0BR1 = 0x00; // 16MHz 500000 baud
+    UCA0BR0 = 0x01; // 16MHz 1 Mbaud
+    UCA0BR1 = 0x00; // 16MHz 1 Mbaud
 
     UCA0MCTL = UCOS16; // Modulation UCBRSx = 0, UCBRFx = 0
     UCA0CTL1 &= ~UCSWRST; // **Initialize USCI state machine**
