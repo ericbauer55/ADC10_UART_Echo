@@ -11,7 +11,7 @@
 /*********************************************************
  * Global Variables
  *********************************************************/
-uint8_t adcPacket[2]; // UART 8-bit packet structure for one sample
+uint8_t adcPacket[3]; // UART 8-bit packet structure for one sample
 uint8_t packetCounter; // UART packet state machine counter for sending one sample
 int sampleTxDone; // flag is true if the ADC sample has been transmitted, thus S&C a new value;
 
@@ -29,7 +29,7 @@ int main(void)
    initADC10();
    /* Initialize Variables */
    sampleTxDone = 1;
-   adcPacket[0] = 0; adcPacket[1] = 0;
+   adcPacket[0] = 0; adcPacket[1] = 0; adcPacket[2] = 0;
    packetCounter = 0;
    /* Main Loop */
    while (1)
@@ -49,11 +49,13 @@ int main(void)
 __interrupt void ADC10_ISR(void)
 {
 	// Fit converted sample in packets (S=UART start bit, P=UART stop bit, X = ADC10MEM data bit)
-	adcPacket[0] = (ADC10MEM<<1) & (0x7E); // least significant bits (sent 1st) ::S0XXXXXX0P
-	adcPacket[1] = ((ADC10MEM>>2) & (0xF0)) | 0x01; // most significant bits (sent 2nd) :: SXXXX0001P
+	adcPacket[1] = (ADC10MEM<<1) & (0x7E); // least significant bits (sent 1st) ::S0XXXXXX0P
+	adcPacket[2] = ((ADC10MEM>>2) & (0xF0)) | 0x01; // most significant bits (sent 2nd) :: SXXXX0001P
 	// Begin UART TX process
 	UC0IE |= UCA0TXIE; // Enable USCI_A0 TX interrupt
-	UCA0TXBUF = adcPacket[packetCounter++]; // send lsb data and post-increment the packet index
+	P1SEL &= ~TXD ; // set TXD pin to be Digital I/O, thus tri-stating UART peripheral
+	P1SEL2 &= ~TXD ; // set TXD pin to be Digital I/O, thus tri-stating UART peripheral
+	UCA0TXBUF = adcPacket[packetCounter++]; // NULL PACKET for synchronization
 	sampleTxDone = 0; // reset sample TX flag during TX process
 }
 
@@ -61,8 +63,11 @@ __interrupt void ADC10_ISR(void)
 __interrupt void USCI0TX_ISR(void)
 {
   while (!(IFG2&UCA0TXIFG)); // USCI_A0 TX buffer ready?
-  if(packetCounter == 1){ // transmit msb data only once
-	  // send msb data, post-increment packet index to reset state machine after next while(busy){} loop
+  P1SEL |= TXD ; // set TXD pin to be UART peripheral
+  P1SEL2 |= TXD ; // set TXD pin to be UART peripheral
+  if(packetCounter <= 2){ // transmit msb data only once
+	  // packetCounter = 1: send lsb data and post-increment the packet index
+	  // packetCounter = 2: send msb data, post-increment packet index to reset state machine after next while(busy){} loop
 	  UCA0TXBUF = adcPacket[packetCounter++];
   } else { // reset state machine
 	  packetCounter = 0;

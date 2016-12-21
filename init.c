@@ -18,6 +18,9 @@ void initPinIO(){
 	P1SEL |= BIT0; // ADC Input Pin P1.0
     P1SEL |= RXD + TXD ; // P1.1 = RXD, P1.2=TXD
     P1SEL2 |= RXD + TXD ; // P1.1 = RXD, P1.2=TXD
+    /* NULL Packet UART Pin Settings */
+    P1DIR |= TXD; // set TXD as an output
+    P1OUT |= TXD; // set TXD as a high setting for NULL packet
 }
 
 void initUART(){
