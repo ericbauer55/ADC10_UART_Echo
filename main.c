@@ -15,9 +15,9 @@ typedef enum{
 	SendNull,
 	SendA,
 	SendB,
-}SCIStateEnum;
-uint8_t adcPacket[3]; // UART 8-bit packet structure for one sample
-SCIStateEnum SCIState; // UART packet state machine counter for sending one sample
+}UARTStateEnum;
+uint8_t adcPacket[2]; // UART 8-bit packet structure for one sample
+UARTStateEnum UARTState; // UART packet state machine counter for sending one sample
 int sampleTxDone; // flag is true if the ADC sample has been transmitted, thus S&C a new value;
 
 
@@ -35,7 +35,7 @@ int main(void)
    initTimer();
    /* Initialize Variables */
    sampleTxDone = 1;
-   adcPacket[0] = 0; adcPacket[1] = 0; adcPacket[2] = 0;
+   adcPacket[0] = 0; adcPacket[1] = 0;
    /* Main Loop */
    while (1)
    {
@@ -70,23 +70,23 @@ __interrupt void USCI0TX_ISR(void)
 #pragma vector=TIMER0_A0_VECTOR
 __interrupt void Timer_A(void)
 {
-	switch(SCIState){ // state checked after Timer ISR exits
+	switch(UARTState){ // state checked after Timer ISR exits
 	   case SendNull:
 		   // do nothing with UART, NULL Packet
 		   sampleTxDone = 0; // flag for TX in progress
-		   SCIState = SendA;
+		   UARTState = SendA;
 		   break;
 	   case SendA:
 		   // Begin UART TX process
 		   // SendA: send lsb data and post-increment the packet index
-		   UCA0TXBUF = adcPacket[1];
-		   SCIState = SendB;
+		   UCA0TXBUF = adcPacket[0];
+		   UARTState = SendB;
 		   break;
 	   case SendB:
-		   // packetCounter = 2: send msb data, post-increment packet index to reset state machine after next while(busy){} loop
-		   UCA0TXBUF = adcPacket[2];
+		   // SendB: send msb data, post-increment packet index to reset state machine after next while(busy){} loop
+		   UCA0TXBUF = adcPacket[1];
 		   // End UART TX process
-		   SCIState = SendNull;
+		   UARTState = SendNull;
 		   sampleTxDone = 1;
 		   break;
 	}
