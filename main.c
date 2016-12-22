@@ -36,6 +36,7 @@ int main(void)
    /* Initialize Variables */
    sampleTxDone = 1;
    adcPacket[0] = 0; adcPacket[1] = 0;
+   UARTState = SendNull;
    /* Main Loop */
    while (1)
    {
